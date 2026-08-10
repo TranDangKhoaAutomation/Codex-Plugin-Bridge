@@ -2,7 +2,7 @@
 
 > Cầu nối MCP an toàn trên Windows giữa **ChatGPT**, **Codex CLI** / **Claude Code** và các workspace cục bộ.
 
-**Version:** `0.6.0` · **Nền tảng:** Windows · **Giấy phép:** MIT
+**Version:** `0.7.0` · **Nền tảng:** Windows · **Giấy phép:** MIT
 
 **Trang tải bản phát hành:** <https://github.com/TranDangKhoaTechnology/Codex-Plugin-Bridge/releases>
 
@@ -43,6 +43,7 @@ MCP protocol version hiện dùng: `2025-06-18`.
 
 - **MCP Streamable HTTP JSON-RPC** — ChatGPT kết nối như một MCP server HTTP.
 - **Standalone Windows executable** — đóng gói bằng PyInstaller, không cần cài Python.
+- **Tự cập nhật trong bản EXE** — kiểm tra GitHub Releases khi khởi động, tải EXE có kiểm tra SHA-256, cài và khởi động lại; chạy từ source không gọi mạng.
 - **Dashboard quản trị** tại `http://127.0.0.1:8765/setup` (chỉ truy cập từ máy local).
 - **Local Coder tools** có giới hạn: đọc, tìm kiếm, ghi, chỉnh sửa chính xác và Git status/diff.
 - **Task runner bất đồng bộ** — có task ID, events, session ID và hủy (cancel) process tree.
@@ -118,6 +119,20 @@ Muốn chạy portable (không self-install):
 
 ```powershell
 .\codex-plugin-bridge.exe --portable --no-browser
+```
+
+### Tự cập nhật
+
+Chỉ bản đóng gói EXE kiểm tra cập nhật từ GitHub Releases. Khi khởi động, bridge kiểm tra
+nền và hiển thị phiên bản mới trên dashboard tại thẻ **Cập nhật ứng dụng**. Bấm **Cập
+nhật** sẽ tải EXE có kiểm tra SHA-256, đóng bridge, thay EXE rồi chạy lại. Nếu mất mạng,
+trạng thái chuyển thành *failed* và ghi log — không crash, không treo. Chạy từ source
+không gọi GitHub.
+
+Tắt kiểm tra nền khi cần:
+
+```powershell
+.\codex-plugin-bridge.exe --no-update-check
 ```
 
 ### Cài đặt bằng install.ps1
