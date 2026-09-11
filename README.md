@@ -512,7 +512,7 @@ Uninstaller: remove HKCU startup entry, Start Menu shortcut, dừng bridge/cloud
 Phát hành theo **MIT License**.
 
 ```text
-Copyright (c) 2026 Trần Đăng Khoa
+Copyright (c) 2026 Trần Đăng Khoa / TranDangKhoaAutomation
 ```
 
 Release sử dụng/liên quan đến:
