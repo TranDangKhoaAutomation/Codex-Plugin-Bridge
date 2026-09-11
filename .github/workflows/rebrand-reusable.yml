@@ -45,10 +45,31 @@ jobs:
 
           def normalize_copyright(text: str) -> str:
               holder = rf"(?:{re.escape(HUMAN)}|Tran\s*Dang\s*Khoa|{BRAND})"
-              prefix = r"(?P<prefix>(?:Copyright\s*)?(?:\(c\)|©)\s*(?:(?:19|20)\d{2}(?:\s*[-–—]\s*(?:(?:19|20)\d{2}|present))?\s*)?)"
-              suffix = rf"(?:\s*(?:/|·|[-–—])\s*{BRAND})?"
-              pattern = re.compile(prefix + holder + suffix, re.IGNORECASE)
-              return pattern.sub(lambda m: f"{m.group('prefix')}{HUMAN} / {BRAND}", text)
+              brand_suffix = rf"(?:\s*(?:/|·|[-–—])\s*{BRAND})?"
+              year = r"(?P<year>(?:19|20)\d{2}(?:\s*[-–—]\s*(?:(?:19|20)\d{2}|present))?)"
+              symbol = r"(?:\(c\)|©|&copy;)"
+
+              # Year before holder: Copyright © 2026 Trần Đăng Khoa
+              p1 = re.compile(
+                  rf"(?:Copyright\s*)?{symbol}\s*{year}\s*{holder}{brand_suffix}",
+                  re.IGNORECASE,
+              )
+              text = p1.sub(lambda m: f"Copyright © {m.group('year')} {HUMAN} / {BRAND}", text)
+
+              # Holder before year: Copyright &copy; TranDangKhoaAutomation, 2021
+              p2 = re.compile(
+                  rf"(?:Copyright\s*)?{symbol}\s*{holder}{brand_suffix}\s*,?\s*{year}",
+                  re.IGNORECASE,
+              )
+              text = p2.sub(lambda m: f"Copyright © {m.group('year')} {HUMAN} / {BRAND}", text)
+
+              # No explicit year: Copyright © Trần Đăng Khoa
+              p3 = re.compile(
+                  rf"(?P<prefix>(?:Copyright\s*)?{symbol}\s*){holder}{brand_suffix}",
+                  re.IGNORECASE,
+              )
+              text = p3.sub(lambda m: f"{m.group('prefix')}{HUMAN} / {BRAND}", text)
+              return text
 
           def convert(text: str) -> str:
               kept = []
