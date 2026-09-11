@@ -13,57 +13,170 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Standardize personal branding
+      - name: Standardize personal branding and copyright
         shell: python
         run: |
           from pathlib import Path
           import re
-          T="TranDangKhoaAutomation"
-          WORKFLOWS=Path(".github/workflows")
-          SKIP={".git","node_modules",".pio","build","dist",".venv","venv","vendor"}
-          PROTECTED=re.compile(r"https?://[^\s\"'<>)]*(?:youtube\.com/@(?:codewithkhoa|trandangkhoatechnology)|trandangkhoatechnology\.github\.io|trandangkhoatechnology\.xyz)[^\s\"'<>)]*",re.I)
-          def is_workflow_path(path):
-            try:
-              path.relative_to(WORKFLOWS)
-              return True
-            except ValueError:
-              return False
-          def convert(text):
-            keep=[]
-            def stash(m): keep.append(m.group(0)); return f"__TDK_KEEP_{len(keep)-1}__"
-            text=PROTECTED.sub(stash,text)
-            text=re.sub(r"(?i)https://github\.com/(?:CodeWithKhoa|TranDangKhoaTechnology)/",f"https://github.com/{T}/",text)
-            text=re.sub(r"(?i)https://raw\.githubusercontent\.com/(?:CodeWithKhoa|TranDangKhoaTechnology)/",f"https://raw.githubusercontent.com/{T}/",text)
-            for pat in (r"(?i)\bcode\s*with\s*khoa\b",r"(?i)\btrandangkhoatechnology\b",r"(?i)\btran\s+dang\s+khoa\s+technology\b",r"(?i)\btrần\s+đăng\s+khoa\s+technology\b",r"(?i)\btran\s+dang\s+khoa\s+automation\b"):
-              text=re.sub(pat,T,text)
-            for i,v in enumerate(keep): text=text.replace(f"__TDK_KEEP_{i}__",v)
-            return text
-          root=Path("."); changed=[]
-          for p in root.rglob("*"):
-            if not p.is_file() or is_workflow_path(p) or any(x in SKIP for x in p.parts): continue
-            try:
-              raw=p.read_bytes()
-              if b"\0" in raw: continue
-              old=raw.decode("utf-8")
-            except (UnicodeDecodeError,OSError): continue
-            new=convert(old)
-            if new!=old:
-              p.write_text(new,encoding="utf-8",newline=""); changed.append(str(p))
-          for p in sorted((x for x in root.rglob("*") if x.exists()),key=lambda x:len(x.parts),reverse=True):
-            if is_workflow_path(p) or any(x in SKIP for x in p.parts): continue
-            new_name=re.sub(r"(?i)code\s*with\s*khoa|trandangkhoatechnology",T,p.name)
-            dest=p.with_name(new_name)
-            if new_name!=p.name and not dest.exists():
-              try: p.rename(dest); changed.append(f"{p} -> {dest}")
-              except OSError: pass
-          print(f"Changed entries: {len(changed)}")
-          for item in changed: print(item)
+          import subprocess
+
+          BRAND = "TranDangKhoaAutomation"
+          HUMAN = "Trần Đăng Khoa"
+          PAGES = "https://trandangkhoaautomation.github.io"
+
+          # GitHub Actions' GITHUB_TOKEN cannot modify workflow files. Existing
+          # workflows are handled separately through the GitHub contents API.
+          def is_workflow(path: Path) -> bool:
+              return path.as_posix().startswith(".github/workflows/")
+
+          # Keep operational third-party/external URLs that are not proven to
+          # have a new endpoint. Their visible labels/attribution are still
+          # normalized by the generic text replacements below.
+          EXTERNAL_URL = re.compile(
+              r"https?://[^\s\"'<>)]*(?:youtube\.com/@(?:codewithkhoa|trandangkhoatechnology)|trandangkhoatechnology\.xyz)[^\s\"'<>)]*",
+              re.IGNORECASE,
+          )
+
+          def normalize_copyright(text: str) -> str:
+              # Normalize only copyright statements that explicitly identify
+              # this project's owner. Do not touch upstream/third-party notices.
+              holder = rf"(?:{re.escape(HUMAN)}|Tran\s*Dang\s*Khoa|{BRAND})"
+              prefix = r"(?P<prefix>(?:Copyright\s*)?(?:\(c\)|©)\s*(?:(?:19|20)\d{2}(?:\s*[-–—]\s*(?:(?:19|20)\d{2}|present))?\s*)?)"
+              pattern = re.compile(prefix + holder + rf"(?:\s*/\s*{BRAND})?", re.IGNORECASE)
+              return pattern.sub(lambda m: f"{m.group('prefix')}{HUMAN} / {BRAND}", text)
+
+          def convert(text: str) -> str:
+              kept = []
+              def stash(match):
+                  kept.append(match.group(0))
+                  return f"__TDK_EXTERNAL_URL_{len(kept)-1}__"
+
+              text = EXTERNAL_URL.sub(stash, text)
+
+              # Repository-owner and raw-content links.
+              text = re.sub(
+                  r"(?i)https://github\.com/(?:CodeWithKhoa|TranDangKhoaTechnology)(?=/|\.png|$)",
+                  f"https://github.com/{BRAND}",
+                  text,
+              )
+              text = re.sub(
+                  r"(?i)https://raw\.githubusercontent\.com/(?:CodeWithKhoa|TranDangKhoaTechnology)/",
+                  f"https://raw.githubusercontent.com/{BRAND}/",
+                  text,
+              )
+
+              # GitHub Pages owner changed together with the renamed pages repo.
+              text = re.sub(
+                  r"(?i)https?://trandangkhoatechnology\.github\.io",
+                  PAGES,
+                  text,
+              )
+
+              # Personal-brand variants in prose, comments, UI strings, config,
+              # manifests, banners, metadata, and other tracked text.
+              variants = (
+                  r"(?i)\bcode\s*with\s*khoa\b",
+                  r"(?i)\btrandangkhoatechnology\b",
+                  r"(?i)\btran\s+dang\s+khoa\s+technology\b",
+                  r"(?i)\btrần\s+đăng\s+khoa\s+technology\b",
+                  r"(?i)\btran\s+dang\s+khoa\s+automation\b",
+                  r"(?i)\btrần\s+đăng\s+khoa\s+automation\b",
+              )
+              for pat in variants:
+                  text = re.sub(pat, BRAND, text)
+
+              text = normalize_copyright(text)
+
+              for i, value in enumerate(kept):
+                  text = text.replace(f"__TDK_EXTERNAL_URL_{i}__", value)
+              return text
+
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode("utf-8").split("\0")
+          changed = []
+          renames = []
+
+          for name in tracked:
+              if not name:
+                  continue
+              p = Path(name)
+              if is_workflow(p) or not p.is_file():
+                  continue
+              try:
+                  raw = p.read_bytes()
+                  if b"\0" in raw:
+                      continue
+                  old = raw.decode("utf-8")
+              except (UnicodeDecodeError, OSError):
+                  continue
+              new = convert(old)
+              if new != old:
+                  p.write_text(new, encoding="utf-8", newline="")
+                  changed.append(name)
+
+          # Rename tracked paths carrying the legacy personal brand.
+          for name in sorted((x for x in tracked if x), key=lambda x: x.count("/"), reverse=True):
+              p = Path(name)
+              if is_workflow(p) or not p.exists():
+                  continue
+              new_name = re.sub(r"(?i)code\s*with\s*khoa|trandangkhoatechnology", BRAND, p.name)
+              if new_name == p.name:
+                  continue
+              dest = p.with_name(new_name)
+              if dest.exists():
+                  continue
+              try:
+                  p.rename(dest)
+                  renames.append(f"{p} -> {dest}")
+              except OSError:
+                  pass
+
+          print(f"Changed text files: {len(changed)}")
+          for item in changed:
+              print(item)
+          print(f"Renamed entries: {len(renames)}")
+          for item in renames:
+              print(item)
+
+      - name: Verify legacy personal branding in tracked text
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          import subprocess
+
+          legacy = re.compile(r"code\s*with\s*khoa|trandangkhoatechnology|tran\s+dang\s+khoa\s+technology|trần\s+đăng\s+khoa\s+technology", re.I)
+          allowed_external = re.compile(r"https?://[^\s\"'<>)]*(?:youtube\.com/@(?:codewithkhoa|trandangkhoatechnology)|trandangkhoatechnology\.xyz)[^\s\"'<>)]*", re.I)
+          hits = []
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode("utf-8").split("\0")
+          for name in tracked:
+              if not name or name.startswith(".github/workflows/"):
+                  continue
+              p = Path(name)
+              if not p.is_file():
+                  continue
+              try:
+                  raw = p.read_bytes()
+                  if b"\0" in raw:
+                      continue
+                  text = raw.decode("utf-8")
+              except (UnicodeDecodeError, OSError):
+                  continue
+              scrubbed = allowed_external.sub("", text)
+              if legacy.search(scrubbed):
+                  hits.append(name)
+          if hits:
+              print("Legacy branding remains in:")
+              for name in hits:
+                  print(name)
+              raise SystemExit(1)
+          print("Verified: no non-exempt legacy personal branding remains in tracked UTF-8 text.")
+
       - name: Commit migration
         shell: bash
         run: |
-          if git diff --quiet; then echo "No branding changes needed."; exit 0; fi
+          if git diff --quiet; then echo "No branding/copyright changes needed."; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "chore: standardize branding to TranDangKhoaAutomation"
+          git commit -m "chore: normalize branding and copyright"
           git push
