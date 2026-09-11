@@ -4,7 +4,7 @@
 
 **Version:** `0.7.0` · **Nền tảng:** Windows · **Giấy phép:** MIT
 
-**Trang tải bản phát hành:** <https://github.com/TranDangKhoaTechnology/Codex-Plugin-Bridge/releases>
+**Trang tải bản phát hành:** <https://github.com/TranDangKhoaAutomation/Codex-Plugin-Bridge/releases>
 
 Codex Plugin Bridge biến máy Windows thành execution gateway cục bộ cho ChatGPT thông qua giao thức **MCP (Model Context Protocol)**. Dự án tách việc thực thi thành hai lớp độc lập:
 
@@ -527,6 +527,6 @@ Release sử dụng/liên quan đến:
 
 **Trần Đăng Khoa**
 
-GitHub: <https://github.com/TranDangKhoaTechnology>
+GitHub: <https://github.com/TranDangKhoaAutomation>
 
 > Khuyến nghị khi bắt đầu: dùng **SAFE + read-only**, kiểm tra `local_list_roots` và `check_codex_status`, sau đó chỉ nâng quyền khi workflow thực sự cần.
