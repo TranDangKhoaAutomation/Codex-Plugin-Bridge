@@ -24,22 +24,17 @@ jobs:
           HUMAN = "Trần Đăng Khoa"
           PAGES = "https://trandangkhoaautomation.github.io"
 
-          # GitHub Actions' GITHUB_TOKEN cannot modify workflow files. Existing
-          # workflows are handled separately through the GitHub contents API.
           def is_workflow(path: Path) -> bool:
               return path.as_posix().startswith(".github/workflows/")
 
-          # Keep operational third-party/external URLs that are not proven to
-          # have a new endpoint. Their visible labels/attribution are still
-          # normalized by the generic text replacements below.
-          EXTERNAL_URL = re.compile(
-              r"https?://[^\s\"'<>)]*(?:youtube\.com/@(?:codewithkhoa|trandangkhoatechnology)|trandangkhoatechnology\.xyz)[^\s\"'<>)]*",
+          # Preserve operational endpoints whose replacement has not been verified.
+          # This includes an old YouTube handle and the legacy .xyz API/domain.
+          OPERATIONAL = re.compile(
+              r"(?:https?://)?(?:www\.)?(?:youtube\.com/@(?:codewithkhoa|trandangkhoatechnology)|trandangkhoatechnology\.xyz)(?:[^\s\"'<>)]*)?",
               re.IGNORECASE,
           )
 
           def normalize_copyright(text: str) -> str:
-              # Normalize only copyright statements that explicitly identify
-              # this project's owner. Do not touch upstream/third-party notices.
               holder = rf"(?:{re.escape(HUMAN)}|Tran\s*Dang\s*Khoa|{BRAND})"
               prefix = r"(?P<prefix>(?:Copyright\s*)?(?:\(c\)|©)\s*(?:(?:19|20)\d{2}(?:\s*[-–—]\s*(?:(?:19|20)\d{2}|present))?\s*)?)"
               pattern = re.compile(prefix + holder + rf"(?:\s*/\s*{BRAND})?", re.IGNORECASE)
@@ -49,11 +44,10 @@ jobs:
               kept = []
               def stash(match):
                   kept.append(match.group(0))
-                  return f"__TDK_EXTERNAL_URL_{len(kept)-1}__"
+                  return f"__TDK_OPERATIONAL_{len(kept)-1}__"
 
-              text = EXTERNAL_URL.sub(stash, text)
+              text = OPERATIONAL.sub(stash, text)
 
-              # Repository-owner and raw-content links.
               text = re.sub(
                   r"(?i)https://github\.com/(?:CodeWithKhoa|TranDangKhoaTechnology)(?=/|\.png|$)",
                   f"https://github.com/{BRAND}",
@@ -64,16 +58,12 @@ jobs:
                   f"https://raw.githubusercontent.com/{BRAND}/",
                   text,
               )
-
-              # GitHub Pages owner changed together with the renamed pages repo.
               text = re.sub(
                   r"(?i)https?://trandangkhoatechnology\.github\.io",
                   PAGES,
                   text,
               )
 
-              # Personal-brand variants in prose, comments, UI strings, config,
-              # manifests, banners, metadata, and other tracked text.
               variants = (
                   r"(?i)\bcode\s*with\s*khoa\b",
                   r"(?i)\btrandangkhoatechnology\b",
@@ -88,7 +78,7 @@ jobs:
               text = normalize_copyright(text)
 
               for i, value in enumerate(kept):
-                  text = text.replace(f"__TDK_EXTERNAL_URL_{i}__", value)
+                  text = text.replace(f"__TDK_OPERATIONAL_{i}__", value)
               return text
 
           tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode("utf-8").split("\0")
@@ -113,7 +103,6 @@ jobs:
                   p.write_text(new, encoding="utf-8", newline="")
                   changed.append(name)
 
-          # Rename tracked paths carrying the legacy personal brand.
           for name in sorted((x for x in tracked if x), key=lambda x: x.count("/"), reverse=True):
               p = Path(name)
               if is_workflow(p) or not p.exists():
@@ -145,7 +134,10 @@ jobs:
           import subprocess
 
           legacy = re.compile(r"code\s*with\s*khoa|trandangkhoatechnology|tran\s+dang\s+khoa\s+technology|trần\s+đăng\s+khoa\s+technology", re.I)
-          allowed_external = re.compile(r"https?://[^\s\"'<>)]*(?:youtube\.com/@(?:codewithkhoa|trandangkhoatechnology)|trandangkhoatechnology\.xyz)[^\s\"'<>)]*", re.I)
+          operational = re.compile(
+              r"(?:https?://)?(?:www\.)?(?:youtube\.com/@(?:codewithkhoa|trandangkhoatechnology)|trandangkhoatechnology\.xyz)(?:[^\s\"'<>)]*)?",
+              re.I,
+          )
           hits = []
           tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode("utf-8").split("\0")
           for name in tracked:
@@ -161,7 +153,7 @@ jobs:
                   text = raw.decode("utf-8")
               except (UnicodeDecodeError, OSError):
                   continue
-              scrubbed = allowed_external.sub("", text)
+              scrubbed = operational.sub("", text)
               if legacy.search(scrubbed):
                   hits.append(name)
           if hits:
