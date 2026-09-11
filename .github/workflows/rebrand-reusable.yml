@@ -27,8 +27,21 @@ jobs:
           def is_workflow(path: Path) -> bool:
               return path.as_posix().startswith(".github/workflows/")
 
+          def is_sensitive(path: Path) -> bool:
+              # Do not rewrite credentials, service-account material, or .env
+              # values. Brand-looking strings in these files may be live IDs,
+              # project names, hostnames or key metadata rather than display text.
+              name = path.name.lower()
+              if name == ".env" or name.startswith(".env."):
+                  return True
+              return name in {
+                  "service-account.json",
+                  "service_account.json",
+                  "credentials.json",
+                  "credential.json",
+              }
+
           # Preserve operational endpoints whose replacement has not been verified.
-          # This includes an old YouTube handle and the legacy .xyz API/domain.
           OPERATIONAL = re.compile(
               r"(?:https?://)?(?:www\.)?(?:youtube\.com/@(?:codewithkhoa|trandangkhoatechnology)|trandangkhoatechnology\.xyz)(?:[^\s\"'<>)]*)?",
               re.IGNORECASE,
@@ -47,7 +60,6 @@ jobs:
                   return f"__TDK_OPERATIONAL_{len(kept)-1}__"
 
               text = OPERATIONAL.sub(stash, text)
-
               text = re.sub(
                   r"(?i)https://github\.com/(?:CodeWithKhoa|TranDangKhoaTechnology)(?=/|\.png|$)",
                   f"https://github.com/{BRAND}",
@@ -63,7 +75,6 @@ jobs:
                   PAGES,
                   text,
               )
-
               variants = (
                   r"(?i)\bcode\s*with\s*khoa\b",
                   r"(?i)\btrandangkhoatechnology\b",
@@ -74,9 +85,7 @@ jobs:
               )
               for pat in variants:
                   text = re.sub(pat, BRAND, text)
-
               text = normalize_copyright(text)
-
               for i, value in enumerate(kept):
                   text = text.replace(f"__TDK_OPERATIONAL_{i}__", value)
               return text
@@ -89,7 +98,7 @@ jobs:
               if not name:
                   continue
               p = Path(name)
-              if is_workflow(p) or not p.is_file():
+              if is_workflow(p) or is_sensitive(p) or not p.is_file():
                   continue
               try:
                   raw = p.read_bytes()
@@ -105,7 +114,7 @@ jobs:
 
           for name in sorted((x for x in tracked if x), key=lambda x: x.count("/"), reverse=True):
               p = Path(name)
-              if is_workflow(p) or not p.exists():
+              if is_workflow(p) or is_sensitive(p) or not p.exists():
                   continue
               new_name = re.sub(r"(?i)code\s*with\s*khoa|trandangkhoatechnology", BRAND, p.name)
               if new_name == p.name:
@@ -133,6 +142,17 @@ jobs:
           import re
           import subprocess
 
+          def is_sensitive(path: Path) -> bool:
+              name = path.name.lower()
+              if name == ".env" or name.startswith(".env."):
+                  return True
+              return name in {
+                  "service-account.json",
+                  "service_account.json",
+                  "credentials.json",
+                  "credential.json",
+              }
+
           legacy = re.compile(r"code\s*with\s*khoa|trandangkhoatechnology|tran\s+dang\s+khoa\s+technology|trần\s+đăng\s+khoa\s+technology", re.I)
           operational = re.compile(
               r"(?:https?://)?(?:www\.)?(?:youtube\.com/@(?:codewithkhoa|trandangkhoatechnology)|trandangkhoatechnology\.xyz)(?:[^\s\"'<>)]*)?",
@@ -144,7 +164,7 @@ jobs:
               if not name or name.startswith(".github/workflows/"):
                   continue
               p = Path(name)
-              if not p.is_file():
+              if is_sensitive(p) or not p.is_file():
                   continue
               try:
                   raw = p.read_bytes()
@@ -157,7 +177,7 @@ jobs:
               if legacy.search(scrubbed):
                   hits.append(name)
           if hits:
-              print("Legacy branding remains in:")
+              print("Legacy branding remains in non-exempt tracked text:")
               for name in hits:
                   print(name)
               raise SystemExit(1)
