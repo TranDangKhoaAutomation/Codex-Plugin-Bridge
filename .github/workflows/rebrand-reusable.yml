@@ -28,9 +28,6 @@ jobs:
               return path.as_posix().startswith(".github/workflows/")
 
           def is_sensitive(path: Path) -> bool:
-              # Do not rewrite credentials, service-account material, or .env
-              # values. Brand-looking strings in these files may be live IDs,
-              # project names, hostnames or key metadata rather than display text.
               name = path.name.lower()
               if name == ".env" or name.startswith(".env."):
                   return True
@@ -41,7 +38,6 @@ jobs:
                   "credential.json",
               }
 
-          # Preserve operational endpoints whose replacement has not been verified.
           OPERATIONAL = re.compile(
               r"(?:https?://)?(?:www\.)?(?:youtube\.com/@(?:codewithkhoa|trandangkhoatechnology)|trandangkhoatechnology\.xyz)(?:[^\s\"'<>)]*)?",
               re.IGNORECASE,
@@ -50,7 +46,8 @@ jobs:
           def normalize_copyright(text: str) -> str:
               holder = rf"(?:{re.escape(HUMAN)}|Tran\s*Dang\s*Khoa|{BRAND})"
               prefix = r"(?P<prefix>(?:Copyright\s*)?(?:\(c\)|©)\s*(?:(?:19|20)\d{2}(?:\s*[-–—]\s*(?:(?:19|20)\d{2}|present))?\s*)?)"
-              pattern = re.compile(prefix + holder + rf"(?:\s*/\s*{BRAND})?", re.IGNORECASE)
+              suffix = rf"(?:\s*(?:/|·|[-–—])\s*{BRAND})?"
+              pattern = re.compile(prefix + holder + suffix, re.IGNORECASE)
               return pattern.sub(lambda m: f"{m.group('prefix')}{HUMAN} / {BRAND}", text)
 
           def convert(text: str) -> str:
@@ -93,7 +90,6 @@ jobs:
           tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode("utf-8").split("\0")
           changed = []
           renames = []
-
           for name in tracked:
               if not name:
                   continue
