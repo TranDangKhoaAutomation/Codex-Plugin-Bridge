@@ -1,0 +1,63 @@
+name: Reusable rebrand to TranDangKhoaAutomation
+
+on:
+  workflow_call:
+
+permissions:
+  contents: write
+
+jobs:
+  rebrand:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Standardize personal branding
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          T="TranDangKhoaAutomation"
+          OWN={".github/workflows/rebrand-automation.yml",".github/workflows/rebrand-reusable.yml"}
+          SKIP={".git","node_modules",".pio","build","dist",".venv","venv","vendor"}
+          PROTECTED=re.compile(r"https?://[^\s\"'<>)]*(?:youtube\.com/@(?:codewithkhoa|trandangkhoatechnology)|trandangkhoatechnology\.github\.io|trandangkhoatechnology\.xyz)[^\s\"'<>)]*",re.I)
+          def convert(text):
+            keep=[]
+            def stash(m): keep.append(m.group(0)); return f"__TDK_KEEP_{len(keep)-1}__"
+            text=PROTECTED.sub(stash,text)
+            text=re.sub(r"(?i)https://github\.com/(?:CodeWithKhoa|TranDangKhoaTechnology)/",f"https://github.com/{T}/",text)
+            text=re.sub(r"(?i)https://raw\.githubusercontent\.com/(?:CodeWithKhoa|TranDangKhoaTechnology)/",f"https://raw.githubusercontent.com/{T}/",text)
+            for pat in (r"(?i)\bcode\s*with\s*khoa\b",r"(?i)\btrandangkhoatechnology\b",r"(?i)\btran\s+dang\s+khoa\s+technology\b",r"(?i)\btrần\s+đăng\s+khoa\s+technology\b",r"(?i)\btran\s+dang\s+khoa\s+automation\b"):
+              text=re.sub(pat,T,text)
+            for i,v in enumerate(keep): text=text.replace(f"__TDK_KEEP_{i}__",v)
+            return text
+          root=Path("."); changed=[]
+          for p in root.rglob("*"):
+            if not p.is_file() or p.as_posix() in OWN or any(x in SKIP for x in p.parts): continue
+            try:
+              raw=p.read_bytes()
+              if b"\0" in raw: continue
+              old=raw.decode("utf-8")
+            except (UnicodeDecodeError,OSError): continue
+            new=convert(old)
+            if new!=old:
+              p.write_text(new,encoding="utf-8",newline=""); changed.append(str(p))
+          for p in sorted((x for x in root.rglob("*") if x.exists()),key=lambda x:len(x.parts),reverse=True):
+            if p.as_posix() in OWN or any(x in SKIP for x in p.parts): continue
+            new_name=re.sub(r"(?i)code\s*with\s*khoa|trandangkhoatechnology",T,p.name)
+            dest=p.with_name(new_name)
+            if new_name!=p.name and not dest.exists():
+              try: p.rename(dest); changed.append(f"{p} -> {dest}")
+              except OSError: pass
+          print(f"Changed entries: {len(changed)}")
+          for item in changed: print(item)
+      - name: Commit migration
+        shell: bash
+        run: |
+          if git diff --quiet; then echo "No branding changes needed."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: standardize branding to TranDangKhoaAutomation"
+          git push
